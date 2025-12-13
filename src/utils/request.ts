@@ -7,6 +7,10 @@ import axios, {
 import getLogger from "./logger";
 import { throttledQueue } from "throttled-queue";
 
+interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
+  shouldRetry?: (response: AxiosResponse) => boolean | Promise<boolean>;
+}
+
 const apiThrottle = throttledQueue({
   maxPerInterval: 5,
   interval: 1000,
@@ -69,14 +73,35 @@ function delay(ms: number): Promise<void> {
 
 // 重试请求
 async function retryRequest<T>(
-  config: AxiosRequestConfig,
+  getConfig: () =>
+    | ExtendedAxiosRequestConfig
+    | Promise<ExtendedAxiosRequestConfig>,
   retryCount: number = 0
 ): Promise<AxiosResponse<T>> {
   try {
+    const config = await getConfig();
     const response = await instance.request<T>(config);
+    if (config.shouldRetry && config.shouldRetry(response)) {
+      const delayTime = calculateBackoffDelay(retryCount);
+      logger.warn(
+        `请求失败，触发用户自定义重试规则，第 ${
+          retryCount + 1
+        } 次重试，延迟 ${delayTime}ms`,
+        {
+          url: config.url,
+          status: response.status,
+          response: response.data,
+        }
+      );
+
+      await delay(delayTime);
+      return retryRequest(getConfig, retryCount + 1);
+    }
+
     return response;
   } catch (error) {
     const axiosError = error as AxiosError;
+    const config = await getConfig();
 
     config.headers = config.headers || {};
 
@@ -98,7 +123,7 @@ async function retryRequest<T>(
       );
 
       await delay(delayTime);
-      return retryRequest(config, retryCount + 1);
+      return retryRequest(getConfig, retryCount + 1);
     }
 
     // 不重试或达到最大重试次数，抛出错误
@@ -381,29 +406,43 @@ instance.interceptors.response.use(
 const request = {
   async get<T = any>(
     url: string,
-    config?: AxiosRequestConfig
+    config?: ExtendedAxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
-    return retryRequest<T>({ ...config, method: "GET", url });
+    return retryRequest<T>(() => ({ ...config, method: "GET", url }));
   },
   async post<T = any>(
     url: string,
-    config?: AxiosRequestConfig,
-    data?: any
+    config?: ExtendedAxiosRequestConfig,
+    getData?: (() => any | Promise<any>) | any
   ): Promise<AxiosResponse<T>> {
-    return retryRequest<T>({ ...config, method: "POST", url, data });
+    return retryRequest<T>(async () => {
+      return {
+        ...config,
+        method: "POST",
+        url,
+        data: typeof getData === "function" ? await getData() : getData,
+      };
+    });
   },
   async put<T = any>(
     url: string,
-    config?: AxiosRequestConfig,
-    data?: any
+    config?: ExtendedAxiosRequestConfig,
+    getData?: (() => any | Promise<any>) | any
   ): Promise<AxiosResponse<T>> {
-    return retryRequest<T>({ ...config, method: "PUT", url, data });
+    return retryRequest<T>(async () => {
+      return {
+        ...config,
+        method: "PUT",
+        url,
+        data: typeof getData === "function" ? await getData() : getData,
+      };
+    });
   },
   async delete<T = any>(
     url: string,
-    config?: AxiosRequestConfig
+    config?: ExtendedAxiosRequestConfig
   ): Promise<AxiosResponse<T>> {
-    return retryRequest<T>({ ...config, method: "DELETE", url });
+    return retryRequest<T>(() => ({ ...config, method: "DELETE", url }));
   },
   instance,
 };

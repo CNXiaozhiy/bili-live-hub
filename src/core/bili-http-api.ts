@@ -230,6 +230,7 @@ export default class BiliHttpApi {
           Referer: "https://live.bilibili.com/",
           cookie: this.cookie,
         },
+        shouldRetry: (resp) => resp.data.code === 19001012, // bvc-play-url-one
       }
     );
 
@@ -522,12 +523,6 @@ export default class BiliHttpApi {
     const end = Math.min(start + _chunkSize, fileSize);
     const actualChunkSize = end - start; // 实际分片大小
 
-    const chunkStream = fs.createReadStream(filePath, {
-      start,
-      end: end - 1,
-      highWaterMark: 64 * 1024,
-    });
-
     // 构建参数
     const params = new URLSearchParams({
       partNumber: `${chunkIndex + 1}`,
@@ -557,7 +552,12 @@ export default class BiliHttpApi {
           timeout: 10000,
           onUploadProgress: options.onUploadProgress,
         },
-        chunkStream
+        () =>
+          fs.createReadStream(filePath, {
+            start,
+            end: end - 1,
+            highWaterMark: 64 * 1024,
+          })
       );
 
       return resp.data;
