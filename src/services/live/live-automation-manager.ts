@@ -207,6 +207,17 @@ export default class LiveAutomationManager extends EventEmitter<LiveAutomationMa
       });
       recorder.on("err", (err) => {
         logger.error(`房间 ${roomId} 录制失败: ${err}`);
+        logger.debug("尝试更换直播流");
+
+        BiliApiService.getDefaultInstance()
+          .getLiveStreamUrl(roomId)
+          .then((urls) => {
+            recorder.updateInputUrl(urls[0]);
+            logger.debug(`已更换`);
+          })
+          .catch((e) => {
+            logger.error(`获取直播流失败`, e);
+          });
       });
       this.liveRecorders.set(hash, recorder);
 

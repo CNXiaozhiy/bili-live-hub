@@ -305,6 +305,11 @@ export default class LiveRecorder extends EventEmitter<LiveRecorderEvents> {
     this.retryCount++;
   }
 
+  public updateInputUrl(newUrl: string) {
+    this.inputUrl = newUrl;
+    logger.debug(`已更换直播流 -> ${newUrl}`);
+  }
+
   /**
    * 清理当前所有录制信息并等待重新开始
    * @param deleteFile 是否删除录像文件

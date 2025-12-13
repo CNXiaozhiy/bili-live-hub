@@ -30,11 +30,11 @@ export default class CommandProcessor<E = null, R = void> {
     description?: string,
     usage?: string
   ): void {
-    if (this.commands.has(name)) {
+    if (this.commands.has(name.toLowerCase())) {
       throw new Error(`Command '${name}' is already registered`);
     }
 
-    this.commands.set(name, {
+    this.commands.set(name.toLowerCase(), {
       handler,
       description,
       usage,

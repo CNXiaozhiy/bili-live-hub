@@ -5,37 +5,48 @@ import { getLogger } from "log4js";
 const logger = getLogger("DynamicAutomationManager");
 
 export interface DynamicAutomationManagerEvents {
-  "new-monitor": [monitor: SpaceDynamicMonitor, uid: number];
-  "remove-user": [uid: number];
+  "new-monitor": [monitor: SpaceDynamicMonitor, mid: number];
+  "remove-user": [mid: number];
 }
 
 export default class DynamicAutomationManager extends EventEmitter<DynamicAutomationManagerEvents> {
-  private monitors: Map<number, SpaceDynamicMonitor> = new Map(); // uid -> SpaceDynamicMonitor
+  private monitors: Map<number, SpaceDynamicMonitor> = new Map(); // mid -> SpaceDynamicMonitor
+  private users = new Set<number>();
 
   constructor() {
     super();
   }
 
-  public addUser(uid: number) {
-    logger.debug(`添加用户 ${uid}`);
-    const monitor = new SpaceDynamicMonitor({ uid });
-    this.monitors.set(uid, monitor);
-    logger.debug(`发射事件 new-monitor -> SpaceDynamicMonitor.uid: ${uid}`);
-    this.emit("new-monitor", monitor, uid);
+  public addUser(mid: number) {
+    if (this.users.has(mid)) {
+      logger.debug(`用户已添加过, 跳过`);
+    }
+
+    logger.debug(`添加用户 ${mid}`);
+    this.users.add(mid);
+    const monitor = new SpaceDynamicMonitor({ mid });
+    this.monitors.set(mid, monitor);
+    logger.debug(`发射事件 new-monitor -> SpaceDynamicMonitor.mid: ${mid}`);
+    this.emit("new-monitor", monitor, mid);
     monitor.startMonitor();
   }
 
-  public removeUser(uid: number) {
-    logger.debug(`移除用户 ${uid}`);
-    this.emit("remove-user", uid);
-    logger.debug(`发射事件 remove-user -> ${uid}`);
-    const monitor = this.monitors.get(uid);
+  public removeUser(mid: number) {
+    if (!this.users.has(mid)) {
+      logger.debug(`用户未添加过, 跳过`);
+    }
+
+    logger.debug(`移除用户 ${mid}`);
+    this.users.delete(mid);
+    this.emit("remove-user", mid);
+    logger.debug(`发射事件 remove-user -> ${mid}`);
+    const monitor = this.monitors.get(mid);
     if (!monitor) {
-      logger.debug(`移除用户失败 -> ${uid} 不存在`);
+      logger.debug(`移除用户失败 -> ${mid} 不存在`);
       return;
     }
     monitor.stopMonitor();
-    this.monitors.delete(uid);
+    this.monitors.delete(mid);
   }
 
   public getSpaceDynamicMonitors() {

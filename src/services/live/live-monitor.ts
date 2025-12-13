@@ -70,6 +70,17 @@ export default class LiveMonitor extends EventEmitter<LiveMonitorEvents> {
           this.emit("live-start", this.lastLiveHash, roomInfo);
         } else if (roomInfo.live_status === LiveRoomStatus.SLIDESHOW) {
           this.emit("live-slideshow", roomInfo);
+          if (this.slideshowAsEnd) {
+            this.emit(
+              "live-end",
+              this.lastLiveHash!,
+              roomInfo,
+              this.lastRoomInfo ?? roomInfo,
+              this.lastRoomInfo
+                ? Date.now() - new Date(this.lastRoomInfo.live_time).getTime()
+                : 0
+            );
+          }
         } else if (roomInfo.live_status === LiveRoomStatus.END) {
           this.emit(
             "live-end",

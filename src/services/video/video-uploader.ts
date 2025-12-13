@@ -208,27 +208,31 @@ export default class VideoUploader extends EventEmitter<{
                   chunkSize,
                   uploadUrl,
                   totalChunks,
-                  onUploadProgress: (progressEvent) => {
-                    const percent = progressEvent.total
-                      ? Math.round(
-                          (progressEvent.loaded * 100) / progressEvent.total
-                        )
-                      : 0;
-                    logger.debug(
-                      `投稿器[${this.name}] -> 视频[${iVideo}] 分片[${i}] 上传进度: ${percent}%`
-                    );
-                  },
+                  // onUploadProgress: (progressEvent) => {
+                  //   const percent = progressEvent.total
+                  //     ? Math.round(
+                  //         (progressEvent.loaded * 100) / progressEvent.total
+                  //       )
+                  //     : 0;
+                  //   logger.debug(
+                  //     `投稿器[${this.name}] -> 视频[${iVideo}] 分片[${i}] 上传进度: ${percent}%`
+                  //   );
+                  // },
                 });
 
                 task.process(`${i + 1}/${totalChunks}`);
 
                 logger.info(
-                  `投稿器[${this.name}] -> 视频[${iVideo}] 分片[${i}] 上传 ->`,
+                  `投稿器[${this.name}] -> 视频[${iVideo}] 分片[${
+                    i + 1
+                  }/${totalChunks}] 上传 ->`,
                   resp
                 );
               } catch (e: any) {
                 logger.error(
-                  `投稿器[${this.name}] -> 视频[${iVideo}] 分片[${i}] 上传失败 ->`,
+                  `投稿器[${this.name}] -> 视频[${iVideo}] 分片[${
+                    i + 1
+                  }/${totalChunks}] 上传失败 ->`,
                   e
                 );
                 return;

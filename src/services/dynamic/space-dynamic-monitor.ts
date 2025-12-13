@@ -5,7 +5,7 @@ import getLogger from "@/utils/logger";
 const logger = getLogger("SpaceDynamicMonitor");
 
 export interface SpaceDynamicMonitorOptions {
-  uid: number;
+  mid: number;
   interval?: number;
 }
 
@@ -14,7 +14,7 @@ export interface SpaceDynamicMonitorEvents {
 }
 
 export default class SpaceDynamicMonitor extends EventEmitter<SpaceDynamicMonitorEvents> {
-  public readonly uid: number;
+  public readonly mid: number;
   public interval: number;
 
   private checkIntervalId?: NodeJS.Timeout;
@@ -22,7 +22,7 @@ export default class SpaceDynamicMonitor extends EventEmitter<SpaceDynamicMonito
 
   constructor(options: SpaceDynamicMonitorOptions) {
     super();
-    this.uid = options.uid;
+    this.mid = options.mid;
     this.interval = options.interval ?? 10000;
   }
 
@@ -30,7 +30,7 @@ export default class SpaceDynamicMonitor extends EventEmitter<SpaceDynamicMonito
     try {
       const { data: spaceDynamic } =
         await BiliApiService.getDefaultInstance().getSpaceDynamic(
-          this.uid,
+          this.mid,
           true
         );
       let item = spaceDynamic.items[0];
@@ -40,11 +40,11 @@ export default class SpaceDynamicMonitor extends EventEmitter<SpaceDynamicMonito
       const dynamicId = item.id_str;
 
       if (!this.lastDynamicId) {
-        logger.info(`记录初始动态, ${this.uid} -> 的最新动态 ${dynamicId}`);
+        logger.info(`记录初始动态, ${this.mid} -> 的最新动态 ${dynamicId}`);
       }
 
       if (this.lastDynamicId && this.lastDynamicId !== dynamicId) {
-        logger.info(`检测到新动态, ${this.uid} ->  的最新动态 ${dynamicId}`);
+        logger.info(`检测到新动态, ${this.mid} ->  的最新动态 ${dynamicId}`);
         this.emit("new", dynamicId);
       }
 
@@ -53,7 +53,7 @@ export default class SpaceDynamicMonitor extends EventEmitter<SpaceDynamicMonito
   }
 
   public startMonitor() {
-    logger.info(`开始监控 ${this.uid} 的动态`);
+    logger.info(`开始监控 ${this.mid} 的动态`);
     this.poll();
     this.checkIntervalId = setInterval(() => {
       this.poll();
@@ -61,7 +61,7 @@ export default class SpaceDynamicMonitor extends EventEmitter<SpaceDynamicMonito
   }
 
   public stopMonitor() {
-    logger.info(`停止监控 ${this.uid} 的动态`);
+    logger.info(`停止监控 ${this.mid} 的动态`);
     if (this.checkIntervalId) {
       clearInterval(this.checkIntervalId);
     }
