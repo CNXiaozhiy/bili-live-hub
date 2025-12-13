@@ -90,7 +90,7 @@
       "notify": true, // 是否开启开播通知
       "group": {
         "群聊1 QQ号": {
-          "official": false, // 是否为官方群（功能保留）
+          "official": false, // 是否为官方群
           "subscribers": [123, 456] // 订阅此通知的用户QQ号
         }
       }

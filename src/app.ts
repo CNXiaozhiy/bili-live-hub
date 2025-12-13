@@ -12,7 +12,7 @@ import Ffmpeg from "./core/ffmpeg";
 import { deleteFolderRecursive, isFolderEmpty } from "./utils/file";
 import LiveAutomationManager from "./services/live/live-automation-manager";
 import BiliApiService from "./services/bili-api";
-import UserAccount from "./core/account";
+import UserAccount from "./core/bilibili/account";
 import { loginAccountByConsole } from "./services/acc/login";
 import QQBotService from "./services/qq-bot/qq-bot-service";
 import DynamicAutomationManager from "./services/dynamic/dynamic-automation-manager";

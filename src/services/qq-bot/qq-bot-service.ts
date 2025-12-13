@@ -1,4 +1,4 @@
-import XzQbot, { ReplyFunction } from "@/core/xz-qbot";
+import XzQbot, { ReplyFunction } from "@/core/bot/xz-qbot";
 import {
   GroupMessageEvent,
   MessageEvent,
@@ -161,6 +161,82 @@ export default class QQBotService {
       return null;
     });
 
+    const subscribeLiveRoom = (
+      qid: number,
+      gid: number,
+      roomId: number
+    ): string => {
+      const liveRoomsConfig = qqBotConfigManager.get("liveRoom");
+
+      const roomConfig = liveRoomsConfig[roomId.toString()];
+      if (!roomConfig) {
+        throw "未被授权, 请联系管理员授权";
+      }
+
+      if (!roomConfig.group[gid]) {
+        logger.warn(`不存在当前群聊 ${gid} 配置, 将使用默认配置`);
+        roomConfig.group[gid] = {
+          offical: false,
+          users: [],
+        };
+      } else if (!Array.isArray(roomConfig.group[gid].users)) {
+        logger.warn(
+          `当前群聊 ${gid} 配置中订阅用户组不为数组, 将初始化为空用户组`
+        );
+        roomConfig.group[gid].users = [];
+      }
+
+      if (roomConfig.group[gid].users.find((u) => u === qid) === undefined) {
+        roomConfig.group[gid].users.push(qid);
+        qqBotConfigManager.set("liveRoom", liveRoomsConfig);
+
+        const _liveRoomConfig =
+          liveConfigManager.get("rooms")[roomId.toString()];
+
+        if (!_liveRoomConfig)
+          return (
+            "订阅成功 🎉\n\n" + "警告⚠️: 主直播间配置未初始化, 请联系管理员处理"
+          );
+        return "订阅成功 🎉";
+      } else {
+        throw "你已经订阅过该直播间, 请勿重复订阅";
+      }
+    };
+
+    const subscribeUserDynamic = (
+      qid: number,
+      gid: number,
+      userId: number
+    ): string => {
+      const usersDynamicConfig = qqBotConfigManager.get("userDynamic");
+      const userConfig = usersDynamicConfig[userId.toString()];
+
+      if (!userConfig) {
+        throw "主播未被授权, 请联系管理员授权";
+      }
+
+      if (!userConfig.group[gid]) {
+        logger.warn(`不存在当前群聊 ${gid} 配置, 将使用默认配置`);
+        userConfig.group[gid] = {
+          offical: false,
+          users: [],
+        };
+      } else if (!Array.isArray(userConfig.group[gid].users)) {
+        logger.warn(
+          `当前群聊 ${gid} 配置中订阅用户组不为数组, 将初始化为空用户组`
+        );
+        userConfig.group[gid].users = [];
+      }
+
+      if (userConfig.group[gid].users.find((u) => u === qid) !== undefined) {
+        userConfig.group[gid].users.push(qid);
+        qqBotConfigManager.set("userDynamic", usersDynamicConfig);
+        return "订阅成功 🎉";
+      } else {
+        return "你已经订阅过该主播, 请勿重复订阅";
+      }
+    };
+
     this.commandProcessor.register(".blh.help", async () => {
       const base64 = await this.htmlTemplatesRender.render("help", {
         message: "暂无",
@@ -171,8 +247,8 @@ export default class QQBotService {
     this.commandProcessor.register(".blh.room", async (args, context) => {
       if (!Utils.auth(context.event.user_id, 1))
         throw new AuthError("权限不足");
-      const liveRoomConfig = qqBotConfigManager.get("liveRoom");
-      const query = new SubscriptionQuery(liveRoomConfig);
+      const liveRoomsConfig = qqBotConfigManager.get("liveRoom");
+      const query = new SubscriptionQuery(liveRoomsConfig);
       const rooms = query.getSubscriptions();
 
       if (rooms.length == 0) {
@@ -181,13 +257,72 @@ export default class QQBotService {
       return rooms.join("\n");
     });
 
-    this.commandProcessor.register("订阅主播", async (args, context) => {
-      // const rooms = args;
+    this.groupCommandProcessor.register("订阅UP", async (args, context) => {
+      const users = args;
 
-      // if (args.length < 1 || !rooms.every((e) => parseInt(e) > 0)) {
-      //   return [OneBotMessageUtils.Text("订阅直播间 [主播ID...]")];
-      // }
-      return [OneBotMessageUtils.Text("功能正在开发中")];
+      if (args.length < 1 || !users.every((e) => parseInt(e) > 0)) {
+        return [OneBotMessageUtils.Text("订阅UP [UP主UID...]")];
+      }
+
+      const messages: SegmentMessages = [];
+
+      for (let user of users) {
+        let _messages: [string, string] = ["", ""];
+
+        const userInfo = await BiliApiService.getDefaultInstance().getUserInfo(
+          parseInt(user)
+        );
+
+        const roomId = userInfo.live_room.roomid;
+
+        // roomId 可能为 0
+        if (userInfo.live_room.roomStatus === 0 || roomId <= 0) {
+          _messages[0] = "该主播无直播间\n";
+        } else {
+          try {
+            const msg = subscribeLiveRoom(
+              context.event.user_id,
+              context.event.group_id,
+              roomId
+            );
+            _messages[0] = `直播间 ${msg}\n`;
+          } catch (e) {
+            const err = e as string;
+            _messages[0] = `直播间 ${err}\n`;
+          }
+        }
+
+        try {
+          const msg = subscribeUserDynamic(
+            context.event.user_id,
+            context.event.group_id,
+            userInfo.mid
+          );
+          _messages[1] = `UP主动态 ${msg}`;
+        } catch (e) {
+          const err = e as string;
+          _messages[1] = `UP主动态 ${err}`;
+        }
+
+        messages.push(
+          OneBotMessageUtils.UrlImage(userInfo.face),
+          OneBotMessageUtils.Text(
+            `UP主 ${userInfo.name}\n` +
+              `- 等级: LV ${userInfo.level}\n` +
+              `- 会员: ${BiliUtils.transformVipType(userInfo.vip.type)}\n` +
+              `- 直播间: ${
+                userInfo.live_room.roomStatus === 0
+                  ? "无"
+                  : userInfo.live_room.roomid
+              }\n` +
+              `- 订阅状态:\n` +
+              `  -${_messages[0]}\n` +
+              `  -${_messages[1]}`
+          )
+        );
+      }
+
+      return messages.intersperse(OneBotMessageUtils.Text("\n\n"));
     });
 
     this.groupCommandProcessor.register("订阅直播间", async (args, context) => {
@@ -199,53 +334,19 @@ export default class QQBotService {
 
       const messages: string[] = [];
 
-      const gid = context.event.group_id;
-      const liveRoomConfig = qqBotConfigManager.get("liveRoom");
-
       for (let _roomId of rooms) {
         const roomId = parseInt(_roomId);
-        const roomConfig = liveRoomConfig[_roomId];
-        if (!roomConfig) {
-          messages.push(
-            rooms.length !== 1
-              ? `${roomId} 未被授权, 请联系管理员授权`
-              : "直播间未授权, 请联系管理员授权"
+
+        try {
+          const msg = subscribeLiveRoom(
+            context.event.user_id,
+            context.event.group_id,
+            roomId
           );
-          continue;
-        }
-
-        if (!roomConfig.group[gid]) {
-          logger.warn(`不存在当前群聊 ${gid} 配置, 将使用默认配置`);
-          roomConfig.group[gid] = {
-            offical: false,
-            users: [],
-          };
-        } else if (!Array.isArray(roomConfig.group[gid].users)) {
-          logger.warn(
-            `当前群聊 ${gid} 配置中订阅用户组不为数组, 将初始化为空用户组`
-          );
-          roomConfig.group[gid].users = [];
-        }
-
-        if (
-          roomConfig.group[gid].users.find(
-            (u) => u === context.event.user_id
-          ) === undefined
-        ) {
-          roomConfig.group[gid].users.push(context.event.user_id);
-          qqBotConfigManager.set("liveRoom", liveRoomConfig);
-
-          const _liveRoomConfig =
-            liveConfigManager.get("rooms")[roomId.toString()];
-
-          if (!_liveRoomConfig) {
-            messages.push(`${roomId} 主直播间配置未初始化, 请联系管理员处理`);
-            continue;
-          }
-
-          messages.push(`${roomId} 订阅成功 🎉`);
-        } else {
-          messages.push(`${roomId} 你已经订阅过该直播间, 请勿重复订阅`);
+          messages.push(rooms.length !== 1 ? `${roomId} ${msg}` : msg);
+        } catch (e) {
+          const err = e as string;
+          messages.push(rooms.length !== 1 ? `${roomId} ${err}` : err);
         }
       }
 
@@ -269,42 +370,19 @@ export default class QQBotService {
 
         const messages: string[] = [];
 
-        const gid = context.event.group_id;
-        const userDynamicConfig = qqBotConfigManager.get("userDynamic");
-
         for (let _userId of users) {
           const uid = parseInt(_userId);
 
-          const userConfig = userDynamicConfig[uid];
-
-          if (!userConfig) {
-            messages.push(`${uid} 主播未被授权, 请联系管理员授权`);
-            continue;
-          }
-
-          if (!userConfig.group[gid]) {
-            logger.warn(`不存在当前群聊 ${gid} 配置, 将使用默认配置`);
-            userConfig.group[gid] = {
-              offical: false,
-              users: [],
-            };
-          } else if (!Array.isArray(userConfig.group[gid].users)) {
-            logger.warn(
-              `当前群聊 ${gid} 配置中订阅用户组不为数组, 将初始化为空用户组`
+          try {
+            const msg = subscribeUserDynamic(
+              context.event.user_id,
+              context.event.group_id,
+              uid
             );
-            userConfig.group[gid].users = [];
-          }
-
-          if (
-            userConfig.group[gid].users.find(
-              (u) => u === context.event.user_id
-            ) !== undefined
-          ) {
-            userConfig.group[gid].users.push(context.event.user_id);
-            qqBotConfigManager.set("userDynamic", userDynamicConfig);
-            messages.push(`${uid} 订阅成功 🎉`);
-          } else {
-            messages.push(`${uid} 你已经订阅过该主播, 请勿重复订阅`);
+            messages.push(users.length !== 1 ? `${uid} ${msg}` : msg);
+          } catch (e) {
+            const err = e as string;
+            messages.push(users.length !== 1 ? `${uid} ${err}` : err);
           }
         }
 
@@ -465,9 +543,9 @@ export default class QQBotService {
       for (let _roomId of rooms) {
         const roomId = parseInt(_roomId);
 
-        const liveRoomConfig = qqBotConfigManager.get("liveRoom");
+        const liveRoomsConfig = qqBotConfigManager.get("liveRoom");
         const _liveRoomConfig = liveConfigManager.get("rooms");
-        const roomConfig = liveRoomConfig[_roomId];
+        const roomConfig = liveRoomsConfig[_roomId];
 
         if (roomConfig) {
           if (!_liveRoomConfig) {
@@ -483,12 +561,12 @@ export default class QQBotService {
           autoUpload: true,
         };
 
-        liveRoomConfig[roomId] = {
+        liveRoomsConfig[roomId] = {
           notify: true,
           group: {},
         };
 
-        qqBotConfigManager.set("liveRoom", liveRoomConfig);
+        qqBotConfigManager.set("liveRoom", liveRoomsConfig);
         liveConfigManager.set("rooms", _liveRoomConfig);
 
         const _roomConfig = _liveRoomConfig[_roomId];
@@ -523,18 +601,18 @@ export default class QQBotService {
 
         const roomId = parseInt(_roomId);
 
-        const liveRoomConfig = qqBotConfigManager.get("liveRoom");
+        const liveRoomsConfig = qqBotConfigManager.get("liveRoom");
         const _liveRoomConfig = liveConfigManager.get("rooms");
 
-        if (liveRoomConfig[_roomId]) {
-          delete liveRoomConfig[_roomId];
+        if (liveRoomsConfig[_roomId]) {
+          delete liveRoomsConfig[_roomId];
         }
 
         if (_liveRoomConfig[_roomId]) {
           delete _liveRoomConfig[_roomId];
         }
 
-        qqBotConfigManager.set("liveRoom", liveRoomConfig);
+        qqBotConfigManager.set("liveRoom", liveRoomsConfig);
         liveConfigManager.set("rooms", _liveRoomConfig);
 
         logger.info(`直播间 ${roomId} 已从配置文件中删除`);
@@ -658,19 +736,20 @@ export default class QQBotService {
         `收到 liveMonitor 的事件 -> live-start, roomId: ${roomId}, liveHash: ${liveHash}`
       );
 
-      const liveRoomConfig =
-        qqBotConfigManager.get("liveRoom")[roomId.toString()];
+      const liveRoomsConfig = qqBotConfigManager.get("liveRoom");
+      const roomConfig = liveRoomsConfig[roomId.toString()];
+      const query = new SubscriptionQuery(liveRoomsConfig);
 
-      if (!liveRoomConfig) {
+      if (!roomConfig) {
         logger.warn(`直播间 ${roomId} 配置不存在或未配置`);
         return;
       }
-      if (!liveRoomConfig.notify) {
+      if (!roomConfig.notify) {
         logger.debug(`直播间 ${roomId} 通知已禁用！`);
         return;
       }
 
-      const notifyGroups = liveRoomConfig.group || {};
+      const notifyGroups = roomConfig.group || {};
 
       if (Object.keys(notifyGroups).length === 0) {
         logger.debug(`直播间 ${roomId} 无群组订阅, 跳过通知`);
@@ -683,15 +762,34 @@ export default class QQBotService {
 
         logger.debug("渲染完成 ✅");
 
-        Object.entries(notifyGroups).forEach(async ([gid, group]) => {
-          const atSegmentMessage = group.users.map<SegmentMessage>((qq) => {
-            return OneBotMessageUtils.At(qq);
-          });
+        Object.entries(notifyGroups).forEach(async ([_gid, group]) => {
+          const gid = parseInt(_gid);
+
           if (!this.bot) {
             logger.error("机器人实例对象不存在！");
             return;
           }
-          await this.bot.sendGroup(parseInt(gid), [
+
+          let shouldAtAll = false;
+          try {
+            const botUid = this.bot.getQID();
+
+            shouldAtAll =
+              query.isOfficialGroup(roomId, gid) &&
+              ["admin", "owner"].includes(
+                (await this.bot.getGroupMemberInfo(gid, botUid)).data.role
+              );
+          } catch (e) {
+            logger.warn(`判断是否需要At全体时出错:`, e);
+          }
+
+          const atSegmentMessage = shouldAtAll
+            ? [OneBotMessageUtils.At("all")]
+            : group.users.map<SegmentMessage>((qq) => {
+                return OneBotMessageUtils.At(qq);
+              });
+
+          await this.bot.sendGroup(gid, [
             OneBotMessageUtils.Text("您订阅的直播间开始直播啦\n"),
             OneBotMessageUtils.Base64Image(base64),
             ...atSegmentMessage,
@@ -765,7 +863,10 @@ export default class QQBotService {
       logger.debug(
         `收到 spaceDynamicMonitor 的事件 -> new, uid: ${uid}, dynamicId: ${dynamicId}`
       );
-      const userConfig = qqBotConfigManager.get("userDynamic")[uid.toString()];
+      const usersDynamicConfig = qqBotConfigManager.get("userDynamic");
+      const userConfig = usersDynamicConfig[uid.toString()];
+      const query = new SubscriptionQuery(usersDynamicConfig);
+
       if (!userConfig) {
         logger.info(`用户 ${uid} 没有设置动态通知配置, 通知已取消`);
         return;
@@ -774,6 +875,7 @@ export default class QQBotService {
         logger.debug(`用户 ${uid} 没有开启动态通知, 通知已取消`);
         return;
       }
+
       const notifyGroups = userConfig.group || {};
 
       if (!notifyGroups) {
@@ -785,17 +887,39 @@ export default class QQBotService {
         `开始动态通知 -> 用户 ${uid}, 群组: ${userConfig.group}, 动态ID: ${dynamicId}`
       );
 
-      Object.entries(notifyGroups).forEach(async ([gid, group]) => {
+      Object.entries(notifyGroups).forEach(async ([_gid, group]) => {
+        const gid = parseInt(_gid);
+
         if (!this.bot) {
           logger.error("机器人实例对象不存在！");
           return;
         }
 
-        await this.bot.sendGroup(parseInt(gid), [
+        let shouldAtAll = false;
+        try {
+          const botUid = this.bot.getQID();
+
+          shouldAtAll =
+            query.isOfficialGroup(uid, gid) &&
+            ["admin", "owner"].includes(
+              (await this.bot.getGroupMemberInfo(gid, botUid)).data.role
+            );
+        } catch (e) {
+          logger.warn(`判断是否需要At全体时出错:`, e);
+        }
+
+        const atSegmentMessage = shouldAtAll
+          ? [OneBotMessageUtils.At("all")]
+          : group.users.map<SegmentMessage>((qq) => {
+              return OneBotMessageUtils.At(qq);
+            });
+
+        await this.bot.sendGroup(gid, [
           OneBotMessageUtils.Text("UP发布新动态啦\n\n"),
           OneBotMessageUtils.Base64Image(
             await this.htmlTemplatesRender.newDynamic(dynamicId)
           ),
+          ...atSegmentMessage,
         ]);
 
         logger.debug(`群聊通知完成 -> Group ${gid}`);
@@ -1021,9 +1145,9 @@ class SubscriptionQuery<T extends DataStore<string>> {
    * @param resourceId 资源ID
    * @returns 所有订阅该资源的用户ID数组
    */
-  getResourceSubscribers(resourceId: string): number[] {
+  getResourceSubscribers(resourceId: number): number[] {
     const subscribers = new Set<number>();
-    const config = this.data[resourceId];
+    const config = this.data[resourceId.toString()];
 
     if (!config) return [];
 
@@ -1040,8 +1164,8 @@ class SubscriptionQuery<T extends DataStore<string>> {
    * @param groupId 群组ID
    * @returns 群组中订阅该资源的用户ID数组
    */
-  getResourceGroupSubscribers(resourceId: string, groupId: number): number[] {
-    const config = this.data[resourceId];
+  getResourceGroupSubscribers(resourceId: number, groupId: number): number[] {
+    const config = this.data[resourceId.toString()];
     if (!config) return [];
 
     const group = config.group[groupId.toString()];
@@ -1055,11 +1179,11 @@ class SubscriptionQuery<T extends DataStore<string>> {
    * @param groupId 群组ID（可选，不传则检查所有群组）
    */
   hasUserSubscribed(
-    resourceId: string,
+    resourceId: number,
     userId: number,
     groupId?: number
   ): boolean {
-    const config = this.data[resourceId];
+    const config = this.data[resourceId.toString()];
     if (!config) return false;
 
     if (groupId) {
@@ -1070,5 +1194,57 @@ class SubscriptionQuery<T extends DataStore<string>> {
     return Object.values(config.group).some((group) =>
       group.users.includes(userId)
     );
+  }
+
+  /**
+   * 获取资源的所有官方群组ID
+   * @param resourceId 资源ID
+   * @returns 该资源的官方群组ID数组
+   */
+  getOfficialGroups(resourceId: number): number[] {
+    const config = this.data[resourceId.toString()];
+    if (!config) return [];
+
+    const officialGroups: number[] = [];
+
+    for (const [groupId, group] of Object.entries(config.group)) {
+      if (group.offical) {
+        officialGroups.push(parseInt(groupId));
+      }
+    }
+
+    return officialGroups;
+  }
+
+  /**
+   * 获取群组的所有官方资源
+   * @param groupId 群组ID
+   * @returns 该群组的官方资源ID，如果没有则返回null
+   */
+  getOfficialResource(groupId: number): string | null {
+    const groupIdStr = groupId.toString();
+
+    for (const [resourceId, config] of Object.entries(this.data)) {
+      const group = config.group[groupIdStr];
+      if (group && group.offical) {
+        return resourceId;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 检查群组是否为某个资源的官方群组
+   * @param resourceId 资源ID
+   * @param groupId 群组ID
+   * @returns 是否为官方群组
+   */
+  isOfficialGroup(resourceId: number, groupId: number): boolean {
+    const config = this.data[resourceId.toString()];
+    if (!config) return false;
+
+    const group = config.group[groupId.toString()];
+    return group ? group.offical : false;
   }
 }

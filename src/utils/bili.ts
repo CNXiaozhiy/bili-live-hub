@@ -1,4 +1,4 @@
-import { LiveRoomStatus } from "@/types/bili";
+import { LiveRoomStatus, VipType } from "@/types/bili";
 import Crypto from "crypto";
 
 export default class BiliUtils {
@@ -17,6 +17,19 @@ export default class BiliUtils {
         return "轮播中 🟡";
       default:
         return "未知状态";
+    }
+  }
+
+  static transformVipType(type: VipType) {
+    switch (type) {
+      case VipType.Null:
+        return "无";
+      case VipType.Monthly_Membership:
+        return "月度大会员";
+      case VipType.Annual_Membership:
+        return "年度大会员";
+      default:
+        return "未知";
     }
   }
 

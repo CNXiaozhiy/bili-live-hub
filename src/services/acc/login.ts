@@ -1,7 +1,7 @@
-import UserAccount from "@/core/account";
+import UserAccount from "@/core/bilibili/account";
 import QRCode from "qrcode";
 import path from "path";
-import BiliHttpApi from "@/core/bili-http-api";
+import BiliHttpApi from "@/core/bilibili/bili-http-api";
 import { LoginInfo } from "@/types/bili";
 import { LoginAccountError } from "@/types/errors/login";
 import { accountConfigManager } from "@/common";

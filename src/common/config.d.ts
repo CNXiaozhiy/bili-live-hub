@@ -63,7 +63,7 @@ export interface WebConfig {
   port: number;
 }
 
-type SubscriptionConfig = {
+export type SubscriptionConfig = {
   notify: boolean;
   group: Record<
     string,
@@ -74,7 +74,7 @@ type SubscriptionConfig = {
   >;
 };
 
-type DataStore<T = string> = Record<T, SubscriptionConfig>;
+export type DataStore<T = string> = Record<T, SubscriptionConfig>;
 
 // 适配器
 export interface QQBotConfig {

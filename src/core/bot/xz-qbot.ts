@@ -36,16 +36,18 @@ export interface XzQbotEvents {
   ];
   group_recall: [
     e: OneBot.GroupMessageRecallNoticeEvent,
-    message: OneBot.SegmentMessages
+    message_id: OneBot.MessageID
   ];
 }
 
-export default class XzQbot extends EventEmitter<XzQbotEvents> {
-  private wsUrl: string;
-  private ws: WebSocket;
-  private connectionPromise: Promise<void> | null = null;
+export class AbsXzQbot extends EventEmitter<XzQbotEvents> {
+  protected wsUrl: string;
+  protected ws: WebSocket;
+  protected connectionPromise: Promise<void> | null = null;
 
-  private heartbeatTimeout: NodeJS.Timeout | null = null; // 心跳超时
+  protected heartbeatTimeout: NodeJS.Timeout | null = null; // 心跳超时
+
+  protected selfId: number = 0;
 
   constructor(wsUrl: string) {
     super();
@@ -186,15 +188,18 @@ export default class XzQbot extends EventEmitter<XzQbotEvents> {
 
   private _notifyHandler(e: OneBot.NoticeEvent) {
     if (e.notice_type === "group_recall") {
-      this.getMsg(e.message_id)
-        .then((resp) => {
-          this.emit("group_recall", e, resp.data.message);
-        })
-        .catch((e) => logger.error(e));
+      // this.getMsg()
+      //   .then((resp) => {
+      //     this.emit("group_recall", e, resp.data.message);
+      //   })
+      //   .catch((e) => logger.error(e));
+
+      this.emit("group_recall", e, e.message_id);
     }
   }
 
   private _metaEventHandler(e: OneBot.MetaEvent) {
+    if (!this.selfId) this.selfId = e.self_id;
     if (e.meta_event_type === "heartbeat") {
       // logger.debug("收到心跳, interval ->", e.interval);
       if (this.heartbeatTimeout) this._clearHeartbeatTimeout();
@@ -266,6 +271,12 @@ export default class XzQbot extends EventEmitter<XzQbotEvents> {
    */
   public _action = this._send;
 
+  public getQID() {
+    return this.selfId;
+  }
+}
+
+export default class XzQBot extends AbsXzQbot {
   getLoginInfo() {
     return this._action({ action: "get_login_info", params: null });
   }
@@ -298,5 +309,12 @@ export default class XzQbot extends EventEmitter<XzQbotEvents> {
 
   getImage(file: string) {
     return this._action({ action: "get_image", params: { file } });
+  }
+
+  getGroupMemberInfo(group_id: number, user_id: number) {
+    return this._action({
+      action: "get_group_member_info",
+      params: { group_id, user_id },
+    });
   }
 }

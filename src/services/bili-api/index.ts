@@ -1,7 +1,7 @@
 // src/services/api/bili-api.ts
 
-import UserAccount from "@/core/account";
-import BiliHttpApi from "@/core/bili-http-api";
+import UserAccount from "@/core/bilibili/account";
+import BiliHttpApi from "@/core/bilibili/bili-http-api";
 import { BiliApiServiceError } from "@/types/errors/bili-api";
 
 import getLogger from "@/utils/logger";

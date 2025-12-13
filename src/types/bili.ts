@@ -299,6 +299,15 @@ export interface Official {
   type: number;
 }
 
+export enum VipType {
+  /** 0：无 */
+  Null = 0,
+  /** 1：月大会员 */
+  Monthly_Membership = 1,
+  /** 2：年度及以上大会员 */
+  Annual_Membership = 2,
+}
+
 /**
  * 会员信息
  */
@@ -309,7 +318,7 @@ export interface Vip {
    * 1：月大会员
    * 2：年度及以上大会员
    */
-  type: number;
+  type: VipType;
   /** 会员状态 0：无 1：有 */
   status: number;
   /** 会员过期时间（毫秒时间戳） */
