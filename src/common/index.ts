@@ -11,7 +11,7 @@ import {
   ApiConfig,
   WebConfig,
 } from "./config";
-import HtmlRender from "@/core/html-render";
+import HtmlRender from "@/core/render/html-render";
 
 export interface GlobalVariables {
   version: string;

@@ -254,7 +254,7 @@ export default class QQBotService {
       if (rooms.length == 0) {
         return "暂无订阅";
       }
-      return rooms.join("\n");
+      return rooms.join(", ");
     });
 
     this.groupCommandProcessor.register("订阅UP", async (args, context) => {
